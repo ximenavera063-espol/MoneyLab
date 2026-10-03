@@ -71,10 +71,9 @@ if not st.session_state["registrado"]:
                     st.session_state["carrera_usuario"] = carrera_clean
                     st.session_state["edad_usuario"] = edad_clean
                     
-                    # 2. Guardar automáticamente en Google Sheets mediante st.secrets
+   # 2. Guardar automáticamente en Google Sheets mediante st.secrets
                     try:
                         conn = st.connection("gsheets", type=GSheetsConnection)
-                        df_existente = conn.read(ttl=0)
                         
                         nuevo_registro = pd.DataFrame([{
                             "Fecha": fecha_actual,
@@ -83,10 +82,18 @@ if not st.session_state["registrado"]:
                             "Edad": edad_clean
                         }])
                         
-                        df_actualizado = pd.concat([df_existente, nuevo_registro], ignore_index=True)
-                        conn.update(data=df_actualizado)
+                        # Intentar leer datos previos o crear una lista limpia
+                        try:
+                            df_existente = conn.read(worksheet="Hoja 1", ttl=0)
+                            df_actualizado = pd.concat([df_existente, nuevo_registro], ignore_index=True)
+                        except Exception:
+                            df_actualizado = nuevo_registro
+
+                        # Guardar en Google Sheets
+                        conn.update(worksheet="Hoja 1", data=df_actualizado)
+                        st.toast("✅ Registro guardado con éxito en Google Sheets")
                     except Exception as e:
-                        pass
+                        st.warning(f"Nota: No se pudo actualizar Google Sheets: {e}")
                         
                     st.success(f"¡Bienvenid@, {nombre_clean}! Cargando herramientas...")
                     st.rerun()
