@@ -22,7 +22,7 @@ if not st.session_state["registrado"]:
     col_welcome, col_form = st.columns([1.2, 1])
     
     with col_welcome:
-        st.title("💰 Bienvenid@ a MoneyLab")
+        st.title("💰 Bienvenidos a MoneyLab")
         st.subheader("Finanzas inteligentes para estudiantes universitarios")
         st.markdown(
             """
