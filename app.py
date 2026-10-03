@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
 
 # Configuración inicial de la página
 st.set_page_config(
@@ -10,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CONTROL DE SESIÓN Y REGISTRO OBLIGATORIO ---
+# --- CONTROL DE SESIÓN ---
 if "registrado" not in st.session_state:
     st.session_state["registrado"] = False
 if "nombre_usuario" not in st.session_state:
@@ -25,49 +26,79 @@ if not st.session_state["registrado"]:
         st.subheader("Finanzas inteligentes para estudiantes universitarios")
         st.markdown(
             """
-            **MoneyLab** es un proyecto de impacto social del **Millennium Fellowship**. 
+            **MoneyLab** es una plataforma educativa diseñada para ayudarte a tomar el control 
+            de tus finanzas personales.
             
             Para acceder a las herramientas interactivas de presupuesto, metas de ahorro y test financiero, 
-            por favor identifícate brevemente a continuación.
+            por favor identifícate a continuación.
             """
         )
-        st.info("📌 Registro rápido para contabilizar el impacto de la iniciativa en la comunidad.")
+        st.info("📌 Registro rápido para habilitar tu sesión personalizada.")
 
     with col_form:
         st.subheader("🔑 Ingreso de Usuario")
         with st.form("form_registro"):
-            nombre_input = st.text_input("Nombre y Apellido:", placeholder="Ej. Ana García")
-            carrera_input = st.text_input("Carrera / Facultad (Opcional):", placeholder="Ej. Economía / ESPOL")
+            nombre_input = st.text_input("Nombre y Apellido:*", placeholder="Ej. Ana García")
+            carrera_input = st.text_input("Carrera:*", placeholder="Ej. Economía")
+            edad_input = st.text_input("Edad:*", placeholder="Ej. 20")
             
             btn_ingresar = st.form_submit_button("Ingresar a MoneyLab 🚀")
             
             if btn_ingresar:
-                if nombre_input.strip() != "":
-                    # Guardar en la sesión activa
-                    st.session_state["registrado"] = True
-                    st.session_state["nombre_usuario"] = nombre_input.strip()
-                    st.session_state["carrera_usuario"] = carrera_input.strip()
-                    
-                    # Guardar registro localmente
-                    fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    nuevo_registro = f"{fecha_actual} - {nombre_input.strip()} - {carrera_input.strip()}\n"
-                    
-                    with open("registro_usuarios.txt", "a", encoding="utf-8") as f:
-                        f.write(nuevo_registro)
-                        
-                    st.success(f"¡Bienvenid@, {nombre_input}! Cargando herramientas...")
-                    st.rerun()
+                nombre_clean = nombre_input.strip()
+                carrera_clean = carrera_input.strip()
+                edad_clean = edad_input.strip()
+                
+                palabras_nombre = nombre_clean.split()
+                
+                # --- VALIDACIONES OBLIGATORIAS ---
+                if not nombre_clean:
+                    st.error("⚠️ Por favor, ingresa tu Nombre y Apellido.")
+                elif len(palabras_nombre) < 2:
+                    st.error("⚠️ Debes ingresar al menos **un nombre y un apellido** (Ej. Ana García).")
+                elif not carrera_clean:
+                    st.error("⚠️ Por favor, ingresa tu Carrera.")
+                elif not edad_clean:
+                    st.error("⚠️ Por favor, ingresa tu Edad.")
+                elif not edad_clean.isdigit():
+                    st.error("⚠️ Por favor, ingresa una Edad válida en números (Ej. 20).")
                 else:
-                    st.error("Por favor, ingresa tu nombre para continuar.")
+                    fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    # 1. Guardar en la sesión activa
+                    st.session_state["registrado"] = True
+                    st.session_state["nombre_usuario"] = nombre_clean
+                    st.session_state["carrera_usuario"] = carrera_clean
+                    st.session_state["edad_usuario"] = edad_clean
+                    
+                    # 2. Guardar automáticamente en Google Sheets mediante st.secrets
+                    try:
+                        conn = st.connection("gsheets", type=GSheetsConnection)
+                        df_existente = conn.read(ttl=0)
+                        
+                        nuevo_registro = pd.DataFrame([{
+                            "Fecha": fecha_actual,
+                            "Nombre": nombre_clean,
+                            "Carrera": carrera_clean,
+                            "Edad": edad_clean
+                        }])
+                        
+                        df_actualizado = pd.concat([df_existente, nuevo_registro], ignore_index=True)
+                        conn.update(data=df_actualizado)
+                    except Exception as e:
+                        pass
+                        
+                    st.success(f"¡Bienvenid@, {nombre_clean}! Cargando herramientas...")
+                    st.rerun()
 
-# PANTALLA 2: UNA VEZ QUE EL USUARIO YA INGRESÓ SU NOMBRE
+# PANTALLA 2: UNA VEZ QUE EL USUARIO YA INGRESÓ SUS DATOS
 else:
     # --- MENÚ LATERAL ---
     st.sidebar.title("💰 MoneyLab")
     st.sidebar.success(f"👤 Usuario: **{st.session_state['nombre_usuario']}**")
     
     if st.sidebar.button("Cerrar Sesión / Cambiar Usuario"):
-        st.session_state["registrado"] = False
+        st.session_state.clear()
         st.rerun()
 
     st.sidebar.markdown("---")
@@ -82,7 +113,7 @@ else:
     )
 
     st.sidebar.markdown("---")
-    st.sidebar.caption("Proyecto de Impacto Social | Millennium Fellowship")
+    st.sidebar.caption("MoneyLab | Plataforma de Educación Financiera")
 
     # --- SECCIÓN: INICIO ---
     if opcion == "Inicio":
@@ -94,7 +125,7 @@ else:
             MoneyLab te ayuda a practicar conceptos básicos de finanzas personales, 
             gestionar tus presupuestos y planificar metas de ahorro de forma práctica.
             
-            Usa el menú desplegable de la izquierda para navegar entre las distintas herramientas.
+            Usa el menú lateral de la izquierda para navegar entre las distintas herramientas.
             """
         )
 
@@ -163,7 +194,7 @@ else:
             )
 
             if tipo_calculo == "Definir mi aporte mensual":
-                aporte_mensual = st.number_input("Aporte mensual ($):", min_value=5.0, value=50.0, step=5.0)
+                aporte_mensual = st.number_input("Aporte mensual ($):", min_value=1.0, value=50.0, step=5.0)
                 monto_faltante = max(0.0, monto_objetivo - ahorro_actual)
                 meses_necesarios = int(np.ceil(monto_faltante / aporte_mensual)) if aporte_mensual > 0 else 0
             else:
