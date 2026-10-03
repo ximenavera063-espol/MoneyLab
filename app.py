@@ -53,7 +53,7 @@ if not st.session_state["registrado"]:
                 
                 # --- VALIDACIONES OBLIGATORIAS ---
                 if not nombre_clean:
-                    st.error("⚠️ Por favor, ingresa tu Nombre y Apellido.")
+                    st.error("⚠️️ Por favor, ingresa tu Nombre y Apellido.")
                 elif len(palabras_nombre) < 2:
                     st.error("⚠️ Debes ingresar al menos **un nombre y un apellido** (Ej. Ana García).")
                 elif not carrera_clean:
