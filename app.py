@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import requests
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
 
 # Configuración inicial de la página
 st.set_page_config(
@@ -53,7 +53,7 @@ if not st.session_state["registrado"]:
                 
                 # --- VALIDACIONES OBLIGATORIAS ---
                 if not nombre_clean:
-                    st.error("⚠️️ Por favor, ingresa tu Nombre y Apellido.")
+                    st.error("⚠ Por favor, ingresa tu Nombre y Apellido.")
                 elif len(palabras_nombre) < 2:
                     st.error("⚠️ Debes ingresar al menos **un nombre y un apellido** (Ej. Ana García).")
                 elif not carrera_clean:
@@ -63,38 +63,30 @@ if not st.session_state["registrado"]:
                 elif not edad_clean.isdigit():
                     st.error("⚠️ Por favor, ingresa una Edad válida en números (Ej. 20).")
                 else:
-                    fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    # 1. Guardar en la sesión activa
+                    # 1. Guardar en Google Sheets mediante Google Apps Script
+                    try:
+                        apps_script_url = st.secrets["APPS_SCRIPT_URL"]
+                        payload = {
+                            "nombre": nombre_clean,
+                            "carrera": carrera_clean,
+                            "edad": int(edad_clean)
+                        }
+                        resp = requests.post(apps_script_url, json=payload, timeout=15)
+                        resultado = resp.json()
+                        
+                        if resp.status_code == 200 and resultado.get("status") == "ok":
+                            st.toast("✅ Registro guardado con éxito en Google Sheets")
+                        else:
+                            st.warning(f"Nota: No se pudo guardar en Google Sheets: {resultado.get('message', 'Error desconocido')}")
+                    except Exception as e:
+                        st.warning(f"Nota: No se pudo conectar con Google Sheets: {e}")
+
+                    # 2. Guardar en la sesión activa y avanzar
                     st.session_state["registrado"] = True
                     st.session_state["nombre_usuario"] = nombre_clean
                     st.session_state["carrera_usuario"] = carrera_clean
                     st.session_state["edad_usuario"] = edad_clean
                     
-   # 2. Guardar automáticamente en Google Sheets mediante st.secrets
-                    try:
-                        conn = st.connection("gsheets", type=GSheetsConnection)
-                        
-                        nuevo_registro = pd.DataFrame([{
-                            "Fecha": fecha_actual,
-                            "Nombre": nombre_clean,
-                            "Carrera": carrera_clean,
-                            "Edad": edad_clean
-                        }])
-                        
-                        # Intentar leer datos previos o crear una lista limpia
-                        try:
-                            df_existente = conn.read(worksheet="Hoja 1", ttl=0)
-                            df_actualizado = pd.concat([df_existente, nuevo_registro], ignore_index=True)
-                        except Exception:
-                            df_actualizado = nuevo_registro
-
-                        # Guardar en Google Sheets
-                        conn.update(worksheet="Hoja 1", data=df_actualizado)
-                        st.toast("✅ Registro guardado con éxito en Google Sheets")
-                    except Exception as e:
-                        st.warning(f"Nota: No se pudo actualizar Google Sheets: {e}")
-                        
                     st.success(f"¡Bienvenid@, {nombre_clean}! Cargando herramientas...")
                     st.rerun()
 
